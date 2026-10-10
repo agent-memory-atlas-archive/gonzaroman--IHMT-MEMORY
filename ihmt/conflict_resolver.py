@@ -25,6 +25,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Pattern, Seque
 from .models import Contradiction, Fact, LeafStatus, MemoryLeaf, NodeNotFoundError
 from .storage import MemoryStore
 from .textutils import (
+    date_of,
     normalize,
     short_hash,
     timestamp_sort_key,
@@ -347,6 +348,11 @@ class ConflictResolver:
             covered.add((fact.attribute, normalize(fact.value)))
             if notice not in notices:
                 notices.append(notice)
+        # A correction saved explicitly over this leaf (``supersede_leaf``).
+        for item in leaf.extra.get("superseded_by", []):
+            notice = str(item.get("notice", ""))
+            if notice and notice not in notices:
+                notices.append(notice)
         # Notices stamped on the leaf when it was superseded. One already
         # rendered from the live timeline above wins, so a leaf flagged by an
         # older release (with older wording) does not show the change twice.
@@ -356,6 +362,63 @@ class ConflictResolver:
             if notice and key not in covered and notice not in notices:
                 notices.append(notice)
         return notices
+
+    # ------------------------------------------------------- leaf succession
+    def successors_of(self, leaf: MemoryLeaf) -> List[str]:
+        """Ids of the leaves that supersede ``leaf``, oldest first.
+
+        Two sources: a fact this leaf asserted whose current value comes from
+        another leaf, and an explicit correction recorded by
+        :meth:`supersede_leaf`.
+        """
+        found: List[str] = []
+        active = self.active_state()
+        for fact in self.facts:
+            if fact.source_leaf_id != leaf.leaf_id or fact.status is not LeafStatus.HISTORICAL:
+                continue
+            current = active.get(fact.key)
+            if (
+                current is not None
+                and current.source_leaf_id
+                and current.source_leaf_id != leaf.leaf_id
+                and normalize(current.value) != normalize(fact.value)
+            ):
+                found.append(current.source_leaf_id)
+        for item in leaf.extra.get("superseded_by", []):
+            if item.get("leaf_id"):
+                found.append(str(item["leaf_id"]))
+        return list(dict.fromkeys(found))
+
+    def supersede_leaf(self, old_leaf_id: str, new_leaf_id: str) -> str:
+        """Record that ``new_leaf_id`` corrects ``old_leaf_id``; return the notice.
+
+        For changes no extraction pattern can see ("version 1.3" became "1.2",
+        a decision reversed). Like a superseded fact, the old leaf keeps its
+        ACTIVE status and its content; it gains a notice, so retrieving it can
+        never read as current, and the navigator puts the correction first.
+
+        Raises:
+            NodeNotFoundError: If either leaf does not exist.
+            ValueError: If both ids are the same leaf.
+        """
+        if old_leaf_id == new_leaf_id:
+            raise ValueError("a memory cannot supersede itself")
+        old = self.store.load_leaf(old_leaf_id)
+        new = self.store.load_leaf(new_leaf_id)
+        notice = (
+            f"On {date_of(old.timestamp)} this was saved: '{_gist(old.content)}', "
+            f"but on {date_of(new.timestamp)} it was corrected: '{_gist(new.content)}'."
+        )
+        records = list(old.extra.get("superseded_by", []))
+        if not any(r.get("leaf_id") == new_leaf_id for r in records):
+            records.append({"leaf_id": new_leaf_id, "superseded_at": new.timestamp, "notice": notice})
+            old.extra["superseded_by"] = records
+            self.store.save_leaf(old)
+        supersedes = list(new.extra.get("supersedes", []))
+        if old_leaf_id not in supersedes:
+            new.extra["supersedes"] = supersedes + [old_leaf_id]
+            self.store.save_leaf(new)
+        return notice
 
     def report(self, *, subject: Optional[str] = None) -> Dict[str, Any]:
         """Machine-readable snapshot of state, history and contradictions."""
@@ -380,6 +443,15 @@ class ConflictResolver:
         for leaf in self.store.iter_leaves():
             self.extract_from_leaf(leaf)
         return len(self.facts)
+
+
+_LEADING_DATE_PREFIX = re.compile(r"^\s*\d{4}-\d{1,2}-\d{1,2}(?:\s*\([^)]*\))?\s*[:\-–—]?\s*")
+
+
+def _gist(content: str, limit: int = 90) -> str:
+    """First line of a memory without its leading date, shortened."""
+    first = content.strip().splitlines()[0] if content.strip() else ""
+    return truncate(_LEADING_DATE_PREFIX.sub("", first), limit).replace("'", "’")
 
 
 def summarize_notices(conflicts: Iterable[Contradiction], formatter: Optional[Callable[[Contradiction], str]] = None) -> List[str]:

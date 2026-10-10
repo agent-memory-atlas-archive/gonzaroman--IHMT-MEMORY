@@ -159,6 +159,8 @@ class McpToolTests(unittest.TestCase):
         output = self.srv.search_memory("Madrid Lavapiés piso")
         self.assertIn("OUTDATED", output)
         self.assertIn("Valencia", output)
+        self.assertIn("Ruzafa", output.split("\n\n")[0], "the current version comes first")
+        self.assertIn("This is the current version", output)
 
     def test_an_empty_query_is_refused(self) -> None:
         self.assertIn("non-empty", self.srv.search_memory("  "))

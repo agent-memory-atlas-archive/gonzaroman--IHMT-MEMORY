@@ -172,6 +172,8 @@ def _format_results(response: SearchResponse) -> str:
         date = result.timestamp[:10] or "undated"
         lines.append("")
         lines.append(f"--- {rank}. [{result.domain}] {date} · {result.leaf_id}")
+        if result.supersedes:
+            lines.append(f"    current version of: {', '.join(result.supersedes)}")
         lines.append(f"    source: {result.file}")
         lines.append(f"    path:   {' > '.join(result.path)}")
         for notice in result.notices:
@@ -204,7 +206,17 @@ def _format_compact(response: SearchResponse) -> str:
     lines = [f"[{best.domain}] {best.timestamp[:10] or 'undated'} (confidence {response.confidence:.2f})"]
     lines += [f"OUTDATED: {notice}" for notice in best.notices]
     lines.append(body)
-    others = response.results[1:MAX_RESULTS]
+    earlier = [r for r in response.results if r.leaf_id in best.supersedes]
+    if earlier:
+        lines.append("")
+        lines.append("This is the current version. It replaces an earlier memory — mention the change:")
+        for result in earlier:
+            # The excerpt, not just the title: the rest of an old memory may still hold.
+            date = result.timestamp[:10] or "undated"
+            excerpt = result.excerpt[:EXCERPT_LIMIT]
+            lines.append(f"  [{result.domain}] " + (excerpt if excerpt.startswith(date) else f"{date}: {excerpt}"))
+            lines += [f"  OUTDATED: {notice}" for notice in result.notices]
+    others = [r for r in response.results[1:MAX_RESULTS] if r.leaf_id not in best.supersedes]
     if others:
         lines.append("")
         lines.append(

@@ -174,7 +174,7 @@ print(answer.best.path)                       # ['root', 'N1-software.java-…',
 print(answer.node_reads)                      # how many branch files were opened
 
 for notice in memory.notices():
-    print(notice)   # "On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to 'Valencia'."
+    print(notice)   # "On 2024-03-11 you said user location = 'Madrid', but on 2026-02-03 you updated to 'Valencia'."
 ```
 
 ---
@@ -425,7 +425,7 @@ memory.resolver.state_at("2024-12-31")["user::location"].value  # 'Madrid'  (bac
 ```
 
 Repeating a value at a later date is a confirmation, not a contradiction. A genuine change produces a
-transparent notice — *"On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to
+transparent notice — *"On 2024-03-11 you said user location = 'Madrid', but on 2026-02-03 you updated to
 'Valencia'."* — and the superseded leaf is annotated, so retrieving outdated material always arrives
 with its correction attached (`SearchResult.notices`).
 

@@ -113,6 +113,15 @@ class ExtractionTests(StoreTestCase):
         self.assertTrue(notices, "an answer built on superseded material must carry its notice")
         self.assertTrue(any("Valencia" in notice for notice in notices))
 
+    def test_a_search_matching_the_old_wording_answers_with_the_current_version(self) -> None:
+        response = self.memory.search("piso Lavapiés contrato Madrid", top_k=3)
+
+        self.assertIn("Valencia", response.best.content)
+        self.assertTrue(response.best.supersedes)
+        earlier = [r for r in response.results if r.leaf_id in response.best.supersedes]
+        self.assertTrue(earlier and earlier[0].notices, "the replaced version follows, with its notice")
+        self.assertIsNone(response.clue_request, "an old version is history, not a rival")
+
     def test_a_notice_stamped_with_older_wording_is_not_shown_twice(self) -> None:
         historical = self.memory.resolver.timeline("user", "location")[0]
         leaf = self.memory.get_leaf(historical.source_leaf_id)

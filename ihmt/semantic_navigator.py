@@ -28,6 +28,8 @@ from .storage import MemoryStore
 from .textutils import content_terms, dedupe, normalize, truncate
 
 #: Depth guard for a pathological tree.
+#: Corrections of corrections followed when putting the current answer first.
+MAX_SUCCESSION_HOPS = 5
 MAX_DESCENT = 32
 
 #: Search scopes for code: production sources, tests, or everything.
@@ -82,6 +84,8 @@ class SearchResult:
     content: str = ""
     notices: List[str] = field(default_factory=list)
     file: str = ""
+    #: Leaves this result corrects, when it was put first in their place.
+    supersedes: List[str] = field(default_factory=list)
 
     def to_dict(self, *, include_content: bool = False) -> Dict[str, Any]:
         data = {
@@ -96,6 +100,7 @@ class SearchResult:
             "status": self.status,
             "notices": self.notices,
             "file": self.file,
+            "supersedes": self.supersedes,
         }
         if include_content:
             data["content"] = self.content
@@ -391,10 +396,17 @@ class SemanticNavigator:
 
         response.depth = level
         ordered = sorted(leaf_pool.values(), key=lambda c: (-c.score, c.id))[:top_k]
+        ordered, replaced = self._current_first(ordered, response)
         response.results = [self._materialize(c, parents, include_content, response) for c in ordered]
+        for result in response.results:
+            result.supersedes = replaced.get(result.leaf_id, [])
+        # Earlier versions of the answer are history, not rivals: they must not
+        # lower its confidence or turn it into a clue request.
+        outdated = {old for olds in replaced.values() for old in olds}
+        ranked = [c for c in ordered if c.id not in outdated]
 
         # ---- confidence & ambiguity ---------------------------------------
-        response.confidence = self._confidence(ordered)
+        response.confidence = self._confidence(ranked)
         response.coverage = round(ordered[0].coverage, 4) if ordered else 0.0
         if ordered and response.coverage < self.config.min_coverage:
             # The best leaf holds only a stray word or two of the query: that
@@ -403,7 +415,7 @@ class SemanticNavigator:
             return response
         clue_request = self._maybe_clue_request(
             query,
-            ordered,
+            ranked,
             response.confidence,
             query_terms=[term for group in groups for term in group],
         )
@@ -635,6 +647,68 @@ class SemanticNavigator:
         if leaf is not None and self.conflict_resolver is not None:
             result.notices = self.conflict_resolver.notices_for_leaf(leaf)
         return result
+
+    def _current_first(
+        self, ordered: List[ScoredCandidate], response: SearchResponse
+    ) -> Tuple[List[ScoredCandidate], Dict[str, List[str]]]:
+        """Put the current version of the best answer in front of it.
+
+        When the best leaf has been superseded (a fact it asserted changed, or
+        a correction was saved over it), its successor goes first with the same
+        score, even if the query's words matched the old wording better. The
+        old leaf stays right behind it, carrying its OUTDATED notice.
+
+        Returns:
+            The reordered candidates, and for each promoted leaf the ids of
+            the leaves it replaces.
+        """
+        replaced: Dict[str, List[str]] = {}
+        if self.conflict_resolver is None or not ordered:
+            return ordered, replaced
+        result = list(ordered)
+        seen = set()
+        for _ in range(MAX_SUCCESSION_HOPS):
+            best = result[0]
+            if best.id in seen or best.ref.kind is not NodeKind.LEAF:
+                break
+            seen.add(best.id)
+            try:
+                leaf = self.store.load_leaf(best.id)
+            except NodeNotFoundError:
+                break
+            response.leaf_reads += 1
+            successors = [s for s in self.conflict_resolver.successors_of(leaf) if s not in seen]
+            if not successors:
+                break
+            newest = successors[-1]
+            existing = next((c for c in result if c.id == newest), None)
+            if existing is None:
+                try:
+                    successor = self.store.load_leaf(newest)
+                except NodeNotFoundError:
+                    break
+                response.leaf_reads += 1
+                existing = ScoredCandidate(ref=self._leaf_ref(successor), score=best.score, coverage=best.coverage)
+            else:
+                result.remove(existing)
+                existing.score = max(existing.score, best.score)
+                existing.coverage = max(existing.coverage, best.coverage)
+            result.insert(0, existing)
+            replaced[existing.id] = replaced.pop(best.id, []) + [best.id]
+        return result, replaced
+
+    def _leaf_ref(self, leaf: Any) -> ChildRef:
+        """Descriptor of a leaf reached outside the descent (a successor)."""
+        return ChildRef(
+            id=leaf.leaf_id,
+            kind=NodeKind.LEAF,
+            title=leaf.title,
+            excerpt=leaf.excerpt(self.config.excerpt_chars),
+            path=self.store.relative(self.store.leaf_path(leaf.leaf_id, leaf.domain)),
+            keywords=list(leaf.keywords[:10]),
+            tags=list(leaf.tags[:8]),
+            timestamp=leaf.timestamp,
+        )
 
     @staticmethod
     def _path_for(leaf_id: str, parents: Dict[str, str]) -> List[str]:
