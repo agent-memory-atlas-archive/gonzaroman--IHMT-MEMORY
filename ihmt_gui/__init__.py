@@ -20,7 +20,7 @@ Two things the interface does that the terminal does not:
 
 from __future__ import annotations
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = ["__version__", "serve", "GuiServer"]
 

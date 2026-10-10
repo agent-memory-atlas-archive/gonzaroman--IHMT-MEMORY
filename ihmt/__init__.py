@@ -69,7 +69,7 @@ from .summarizers import (
 )
 from .universal_ingestor import IngestReport, UniversalIngestor
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     "ProjectIndex",
