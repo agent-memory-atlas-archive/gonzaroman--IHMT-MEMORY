@@ -92,6 +92,11 @@ class DetectionTests(StoreTestCase):
 
         self.assertIsNot(detection.data_type, DataType.CODE)
 
+    def test_an_origin_uri_never_becomes_a_domain(self) -> None:
+        detection = self.detector.detect("2026-02-03: I live in Valencia, near the Turia gardens.", source="mcp://claude-code")
+
+        self.assertEqual(detection.domain, "general")
+
     def test_unclassifiable_text_falls_back_to_generic(self) -> None:
         detection = self.detector.detect("xyz abc\n\nqwe rty\n", source="mystery.dat")
         self.assertIs(detection.data_type, DataType.GENERIC)

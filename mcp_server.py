@@ -341,7 +341,11 @@ def save_memory(content: str, domain: str = "general", content_type: str = "auto
     lines = [
         f"Saved {report.chunks} memory entr{'y' if report.chunks == 1 else 'ies'} "
         f"(~{report.tokens} tokens) as {report.data_type.value} in domain '{report.domain}'"
-        + (f" (detection confidence {report.detection.confidence:.2f})." if requested_type is None else "."),
+        + (
+            f" (detection confidence {report.detection.confidence:.2f})."
+            if requested_type is None and report.data_type is not DataType.GENERIC
+            else "."
+        ),
         f"Memory now holds {stats['leaves']} entries across {len(stats['domains'])} domains "
         f"({stats['nodes']} summary nodes, depth {stats['depth']}).",
     ]

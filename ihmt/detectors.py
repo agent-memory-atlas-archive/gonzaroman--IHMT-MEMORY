@@ -320,5 +320,8 @@ class DomainDetector:
         # Short notes cannot reach three topic words as easily as documents.
         if hits >= 3 or (hits >= 2 and len(words) < 60):
             return topic
-        stem = Path(source).stem if source else ""
+        # A file name is a fair last resort ("notes_2024.txt" → notes-2024);
+        # an origin URI is not: every memory saved over MCP would otherwise
+        # share one "claude-code" domain.
+        stem = Path(source).stem if source and "://" not in source else ""
         return slugify(stem, fallback="general") if stem else "general"
