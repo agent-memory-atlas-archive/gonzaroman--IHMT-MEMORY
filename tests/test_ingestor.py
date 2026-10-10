@@ -48,6 +48,50 @@ class DetectionTests(StoreTestCase):
         self.assertEqual(detection.domain, "mi.dominio")
         self.assertEqual(detection.confidence, 1.0)
 
+    def test_a_software_note_about_rain_and_windows_is_not_a_novel(self) -> None:
+        note = (
+            "2026-10-04: Bug en RainDesktop 2.4: al mover una ventana, la lluvia rebotada se queda "
+            "flotando en la ventana antigua. Arreglado en RainSimulation.swift: el agua se suelta "
+            "cuando la ventana se cierra o se mueve. Compilar con ./build.sh."
+        )
+        detection = self.detector.detect(note)
+
+        self.assertIsNot(detection.data_type, DataType.NARRATIVE)
+        self.assertEqual(detection.domain, "software")
+
+    def test_one_stray_word_does_not_make_a_note_clinical(self) -> None:
+        note = "2026-10-10: Gonzalo dio de alta el servidor en Glama; queda pendiente de revisión."
+        detection = self.detector.detect(note)
+
+        self.assertIsNot(detection.data_type, DataType.CLINICAL)
+
+    def test_one_leading_date_does_not_make_a_note_a_diary(self) -> None:
+        note = "2026-01-14: Decided on PostgreSQL over SQLite because bookings need row-level locking."
+        detection = self.detector.detect(note)
+
+        self.assertIsNot(detection.data_type, DataType.PERSONAL)
+
+    def test_list_bullets_are_not_dialogue(self) -> None:
+        note = (
+            "Plan para la mudanza del servidor:\n"
+            "- copiar la carpeta de datos fuera del Escritorio;\n"
+            "- pegar el prompt de instalación con esa carpeta;\n"
+            "- comprobar en una sesión nueva que todo responde;\n"
+        )
+        detection = self.detector.detect(note)
+
+        self.assertIsNot(detection.data_type, DataType.NARRATIVE)
+
+    def test_prose_quoting_a_command_is_not_code(self) -> None:
+        note = (
+            "2026-09-30: IHMT probado en Linux de principio a fin, con un usuario sin permisos;\n"
+            "la instalación crea el entorno virtual y registra el servidor sin tocar el sistema;\n"
+            "para repetirlo basta con ejecutar el prompt de instalación otra vez y esperar;\n"
+        )
+        detection = self.detector.detect(note)
+
+        self.assertIsNot(detection.data_type, DataType.CODE)
+
     def test_unclassifiable_text_falls_back_to_generic(self) -> None:
         detection = self.detector.detect("xyz abc\n\nqwe rty\n", source="mystery.dat")
         self.assertIs(detection.data_type, DataType.GENERIC)

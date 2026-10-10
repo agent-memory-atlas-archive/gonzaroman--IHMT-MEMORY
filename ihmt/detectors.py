@@ -88,7 +88,13 @@ TOPIC_LEXICON: Dict[str, frozenset] = {
     ),
     "software": frozenset(
         "api endpoint servidor despliegue repositorio funcion clase bug refactor deploy server "
-        "repository function class database".split()
+        "repository function class database git github gitlab commit commits branch rama merge "
+        "release version build compilar compila compile binario binary script tests test ci "
+        "pipeline docker contenedor container mcp python swift java javascript typescript kotlin "
+        "rust xcode macos ios linux terminal cli shell zsh bash npm pip venv sdk framework config "
+        "configuracion json yaml sql postgres postgresql sqlite frontend backend app aplicacion "
+        "codigo code fichero archivo directorio directory instalar install plugin shader appkit "
+        "swiftui cpu gpu localhost puerto port token tokens prompt agente agent pr issue".split()
     ),
 }
 
@@ -101,7 +107,18 @@ _CODE_SIGNATURES: List[Tuple[re.Pattern[str], float]] = [
     (re.compile(r"\breturn\b|\bif\s*\(|\bfor\s*\(|=>"), 0.5),
 ]
 
-_DIALOGUE_RE = re.compile(r"^\s*[—–\-\"“«]", re.MULTILINE)
+#: A line opening with a dialogue mark. A hyphen counts only when glued to the words
+#: ("-¿Vienes?"): "- item" is a list bullet, not a line of dialogue.
+#: Marks prose fiction never carries: version numbers, file names, paths and
+#: camelCase or CamelCase identifiers.
+_TECHNICAL_MARK_RE = re.compile(
+    r"\b\d+\.\d+(?:\.\d+)*\b"
+    r"|\b[\w-]+\.(?:swift|py|js|ts|tsx|java|kt|go|rs|c|h|cpp|sh|json|ya?ml|toml|plist|md|txt|app|html|css)\b"
+    r"|(?:^|\s)(?:~|\.{1,2})?/[\w.-]+/"
+    r"|\b[a-z]+[A-Z][A-Za-z0-9]+\b|\b[A-Z][a-z]+[A-Z][A-Za-z0-9]+\b"
+)
+
+_DIALOGUE_RE = re.compile(r"^\s*(?:[—–\"“«]|-(?=\S))", re.MULTILINE)
 _CHAT_RE = re.compile(r"^\s*(?:\[\d{1,2}:\d{2}\]\s*)?[A-ZÀ-Ü][\wÀ-ÿ ]{1,20}:\s", re.MULTILINE)
 _DATE_ENTRY_RE = re.compile(r"^\s*#{0,4}\s*\[?\d{4}-\d{1,2}-\d{1,2}|^\s*\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}", re.MULTILINE)
 _NUMBERED_STEPS_RE = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•])\s+\S", re.MULTILINE)
@@ -165,16 +182,25 @@ class DomainDetector:
         if language:
             signals.append(f"extension:{language}")
         code_score = self._code_score(sample) + (6.0 if language else 0.0)
+        if not language and self._code_line_share(sample) < 0.3:
+            # Prose quoting a command or two is still prose: without a source
+            # extension, code needs a fair share of its lines to look like code.
+            code_score = 0.0
         scores[DataType.CODE.value] = code_score
 
         words = [w for w in re.findall(r"[\wÀ-ÿ'-]+", normalize(sample)) if w]
         density = max(len(words), 1) / 1000.0
         for kind, lexicon in TYPE_LEXICON.items():
             hits = sum(1 for word in words if word in lexicon)
-            scores[kind.value] = hits / density
+            # One stray word is not evidence: per thousand words, a single
+            # "alta" in a 40-word note scored like a clinical history.
+            distinct = len({word for word in words if word in lexicon})
+            scores[kind.value] = hits / density if distinct >= 2 else 0.0
 
         scores[DataType.PERSONAL.value] += 2.0 * len(_CHAT_RE.findall(sample)) / max(1, sample.count("\n") / 10 or 1)
-        scores[DataType.PERSONAL.value] += 3.0 if _DATE_ENTRY_RE.search(sample) else 0.0
+        # Several dated entries make a journal. One leading date does not: it is
+        # how agents date every memory they save, whatever it is about.
+        scores[DataType.PERSONAL.value] += 3.0 if len(_DATE_ENTRY_RE.findall(sample)) >= 2 else 0.0
         scores[DataType.NARRATIVE.value] += min(4.0, len(_DIALOGUE_RE.findall(sample)) * 0.5)
         scores[DataType.PROCESS.value] += min(5.0, len(_NUMBERED_STEPS_RE.findall(sample)) * 0.6)
 
@@ -188,6 +214,11 @@ class DomainDetector:
             detected = DataType.coerce(best_key) if best_value >= 2.0 else DataType.GENERIC
             confidence = self._confidence(best_value, runner_up)
             signals.append(f"top:{best_key}={best_value:.1f}")
+            if self._reads_as_technical_note(words, detected, len(_TECHNICAL_MARK_RE.findall(sample))):
+                # A note about software that happens to say "lluvia" or
+                # "ventana" is not a novel; nor is it a diary for being dated.
+                detected = DataType.GENERIC
+                signals.append("technical-note")
 
         resolved_domain = domain or self._domain_for(detected, words, language, source)
         return Detection(
@@ -200,6 +231,22 @@ class DomainDetector:
         )
 
     # ------------------------------------------------------------------ parts
+    @staticmethod
+    def _reads_as_technical_note(words: List[str], detected: DataType, technical_marks: int = 0) -> bool:
+        """Whether a short prose note is really about software.
+
+        Only overrides the prose types a stray word can tip over; a document
+        dominated by journal or narrative vocabulary keeps its type.
+        """
+        if detected not in (DataType.PERSONAL, DataType.NARRATIVE, DataType.CLINICAL, DataType.GENERIC):
+            return False
+        technical = sum(1 for word in words if word in TOPIC_LEXICON["software"]) + technical_marks
+        if technical < 3:
+            return False
+        rival_lexicon = TYPE_LEXICON.get(detected, frozenset())
+        rival = sum(1 for word in words if word in rival_lexicon)
+        return technical >= rival
+
     @staticmethod
     def _language_from_source(source: str) -> Optional[str]:
         if not source:
@@ -214,6 +261,25 @@ class DomainDetector:
         for pattern, weight in _CODE_SIGNATURES:
             total += weight * len(pattern.findall(text))
         return total * 100.0 / lines
+
+    @staticmethod
+    def _code_line_share(text: str) -> float:
+        """Fraction of non-blank lines that look like code.
+
+        Weak signatures (a trailing ``;``, ``{`` or ``}``, a ``return``) only
+        count on short lines: a list item in prose often ends with ``;`` too.
+        """
+        lines = [line for line in text.splitlines() if line.strip()]
+        if not lines:
+            return 0.0
+
+        def looks_like_code(line: str) -> bool:
+            for pattern, weight in _CODE_SIGNATURES:
+                if pattern.search(line) and (weight >= 2.0 or len(line.split()) <= 8):
+                    return True
+            return False
+
+        return sum(1 for line in lines if looks_like_code(line)) / len(lines)
 
     @staticmethod
     def _confidence(best: float, runner_up: float) -> float:
@@ -251,7 +317,8 @@ class DomainDetector:
             return f"personal.{topic}" if hits >= 12 else "personal"
         if data_type is DataType.NARRATIVE:
             return "literature.narrative"
-        if hits >= 3:
+        # Short notes cannot reach three topic words as easily as documents.
+        if hits >= 3 or (hits >= 2 and len(words) < 60):
             return topic
         stem = Path(source).stem if source else ""
         return slugify(stem, fallback="general") if stem else "general"
