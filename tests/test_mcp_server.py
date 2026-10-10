@@ -13,6 +13,7 @@ import asyncio
 import importlib
 import os
 import tempfile
+import re
 import unittest
 from pathlib import Path
 
@@ -57,7 +58,7 @@ class McpToolTests(unittest.TestCase):
         self.assertEqual(
             set(tools),
             {
-                "search_memory", "save_memory",
+                "search_memory", "save_memory", "mark_outdated",
                 "project_map", "find_code", "read_file",
                 "note", "recall", "digest_output",
             },
@@ -69,6 +70,7 @@ class McpToolTests(unittest.TestCase):
 
         save = tools["save_memory"].input_schema
         self.assertEqual(save["required"], ["content"])
+        self.assertIn("replaces", save["properties"])
         self.assertEqual(save["properties"]["domain"]["default"], "general")
         self.assertEqual(save["properties"]["content_type"]["default"], "auto")
 
@@ -161,6 +163,48 @@ class McpToolTests(unittest.TestCase):
         self.assertIn("Valencia", output)
         self.assertIn("Ruzafa", output.split("\n\n")[0], "the current version comes first")
         self.assertIn("This is the current version", output)
+
+    def test_replaces_flags_the_corrected_memory_and_answers_with_the_new_one(self) -> None:
+        self.srv.save_memory("2026-10-09: RainDesktop 1.3 adds the Mafia mode; installed in Applications.")
+        self.srv.save_memory("2026-10-08: The office printer needs a new toner cartridge.")
+        output = self.srv.save_memory(
+            "2026-10-10: There is no RainDesktop 1.3: the Mafia mode ships in 1.2.",
+            replaces="RainDesktop 1.3 Mafia mode",
+        )
+        self.assertIn("now flagged OUTDATED", output)
+
+        answer = self.srv.search_memory("RainDesktop 1.3 Mafia mode installed")
+        self.assertIn("ships in 1.2", answer.split("\n\n")[0], "the correction comes first")
+        self.assertIn("OUTDATED", answer)
+
+    def test_replaces_with_several_candidates_flags_none_and_lists_them(self) -> None:
+        self.srv.save_memory("2026-10-01: Backups run nightly to the NAS at 02:00.")
+        self.srv.save_memory("2026-10-02: Backups run nightly to the NAS at 03:00 after the router change.")
+        output = self.srv.save_memory("2026-10-10: Backups now run to S3, not to the NAS.", replaces="backups NAS nightly")
+
+        self.assertIn("none was flagged", output)
+        self.assertIn("mark_outdated", output)
+        old_id = re.findall(r"^  (L-\S+) ·", output, re.MULTILINE)[0]
+        new_id = re.search(r'new_id="(L-[^"]+)"', output).group(1)
+
+        flagged = self.srv.mark_outdated(old_id, new_id)
+        self.assertIn("Flagged as outdated", flagged)
+        self.assertIn("OUTDATED", self.srv.search_memory("backups NAS nightly 02:00"))
+
+    def test_replaces_naming_nothing_stored_says_so(self) -> None:
+        self.srv.save_memory("2026-10-01: The team standup moved to 10:00.")
+        output = self.srv.save_memory("2026-10-10: Kubernetes cluster upgraded.", replaces="helm chart rollout")
+
+        self.assertIn("nothing was flagged", output)
+
+    def test_a_clear_correction_prefix_flags_its_predecessor(self) -> None:
+        self.srv.save_memory("2026-03-02: Staging database runs PostgreSQL 15 on a shared cluster.")
+        output = self.srv.save_memory("2026-08-20: CORRECTION: staging database runs PostgreSQL 17 now.")
+
+        self.assertIn("now flagged OUTDATED", output)
+
+    def test_mark_outdated_with_an_unknown_id_explains_itself(self) -> None:
+        self.assertIn("Could not flag", self.srv.mark_outdated("L-nope", "L-neither"))
 
     def test_an_empty_query_is_refused(self) -> None:
         self.assertIn("non-empty", self.srv.search_memory("  "))

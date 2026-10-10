@@ -22,8 +22,10 @@ I have since changed.
 
 Call `save_memory` when I say something durable: decisions and why, how my environment is set up, how
 I want you to work, people and projects, code or procedures I want to keep, and above all
-**corrections** — when something changes, save the new version; IHMT dates it and marks the old one
-as historical.
+**corrections** — when something changes, save the new version and pass `replaces` with a few words
+describing the old memory ("RainDesktop version 1.3"). IHMT flags the old one as OUTDATED and answers
+with the new one from then on. If it lists several candidates instead, pick the right one with
+`mark_outdated`.
 
 When I say "remember this" or "save this", that is `save_memory`.
 

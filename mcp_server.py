@@ -91,8 +91,9 @@ IHMT is a hierarchical memory tree on the local filesystem.
 
 Long-term memory: `search_memory` before answering anything that depends on
 earlier sessions (setup, decisions, preferences, people); `save_memory` for
-durable facts and decisions. Never guess on AMBIGUOUS (retry with `clue`) and
-always relay OUTDATED notices.
+durable facts and decisions, with `replaces` when a save corrects something
+saved earlier. Never guess on AMBIGUOUS (retry with `clue`), say so on NOT
+FOUND, and always relay OUTDATED notices.
 
 Saving tokens inside a session: orient yourself in a codebase with
 `project_map` instead of listing and reading files; use `find_code` to get just
@@ -302,7 +303,7 @@ def search_memory(query: str, clue: Optional[str] = None, detail: str = "compact
 
 
 @server.tool()
-def save_memory(content: str, domain: str = "general", content_type: str = "auto") -> str:
+def save_memory(content: str, domain: str = "general", content_type: str = "auto", replaces: str = "") -> str:
     """Store durable knowledge in the user's long-term memory (IHMT).
 
     Save decisions and why, setup, preferences, people and projects, procedures. Not transient
@@ -315,6 +316,10 @@ def save_memory(content: str, domain: str = "general", content_type: str = "auto
         domain: Leave "general" to let IHMT classify it, or e.g. "software.java".
         content_type: "auto" (recommended), "code", "narrative", "clinical", "personal",
             "process" or "generic".
+        replaces: When this corrects or updates something saved earlier, a few distinctive
+            words describing that earlier memory ("RainDesktop version 1.3"). It is then
+            flagged OUTDATED and searches answer with this one first. If several memories
+            fit, nothing is flagged and the candidates are listed for `mark_outdated`.
     """
     if not content or not content.strip():
         return "Nothing to save: content is empty."
@@ -364,6 +369,8 @@ def save_memory(content: str, domain: str = "general", content_type: str = "auto
     if report.facts:
         lines.append(f"Extracted {report.facts} dated fact(s) into the timeline.")
 
+    lines += _apply_correction(memory, content, report.leaf_ids, replaces)
+
     new_conflicts = [c for c in after if (c.subject, c.attribute, c.new.value) not in before]
     if new_conflicts:
         lines.append("")
@@ -374,6 +381,87 @@ def save_memory(content: str, domain: str = "general", content_type: str = "auto
                 f"  (the earlier value is kept as history, retrievable for questions about that period)"
             )
     return "\n".join(lines)
+
+
+_CORRECTION_PREFIX = re.compile(
+    r"^\s*(?:\d{4}-\d{1,2}-\d{1,2}[^:\n]{0,40}:\s*)?(?:CORRECTION|CORRECCI[OÓ]N)\b\s*[:—–-]?\s*",
+    re.IGNORECASE,
+)
+
+#: A memory starting "CORRECTION:" is linked to its predecessor on its own only
+#: when the predecessor matches this much of its words — otherwise it would be
+#: a guess, and the agent is asked to pass ``replaces`` or call ``mark_outdated``.
+AUTO_CORRECTION_COVERAGE = 0.6
+
+
+def _apply_correction(memory: IHMT, content: str, new_ids: List[str], replaces: str) -> List[str]:
+    """Flag the memory a new save corrects, when one is named or clearly implied.
+
+    Returns the lines to append to the save report.
+    """
+    if not new_ids:
+        return []
+    marked = _CORRECTION_PREFIX.match(content)
+    query = (replaces or "").strip()
+    automatic = not query and marked is not None
+    if automatic:
+        query = content[marked.end():].strip().splitlines()[0][:300]
+    if not query:
+        return []
+
+    response = memory.search(query, top_k=MAX_RESULTS + len(new_ids))
+    candidates = [r for r in response.results if r.leaf_id not in new_ids]
+    new_id = new_ids[0]
+    if not candidates or response.weak:
+        if automatic:
+            return []
+        return ["", f'No earlier memory matches "{query}", so nothing was flagged as outdated.']
+
+    best = candidates[0]
+    margin = memory.config.ambiguity_margin
+    tied = [c for c in candidates[1:] if c.score >= best.score * (1 - margin)]
+    clear = not tied and (not automatic or response.coverage >= AUTO_CORRECTION_COVERAGE)
+    if clear:
+        try:
+            notice = memory.supersede(best.leaf_id, new_id)
+        except (IHMTError, ValueError) as exc:
+            return ["", f"Could not flag the earlier memory: {exc}"]
+        return [
+            "",
+            "This corrects an earlier memory, now flagged OUTDATED — tell the user:",
+            f"  {notice}",
+        ]
+
+    lines = [
+        "",
+        (
+            "This looks like a correction, but which memory it corrects is unclear."
+            if automatic
+            else f'Several earlier memories match "{query}"; none was flagged.'
+        ),
+        f"If one of these is what changed, call mark_outdated(old_id, new_id=\"{new_id}\"):",
+    ]
+    for result in candidates[:MAX_RESULTS]:
+        lines.append(f"  {result.leaf_id} · {result.timestamp[:10] or 'undated'} · {result.title}")
+    return lines
+
+
+@server.tool()
+def mark_outdated(old_id: str, new_id: str) -> str:
+    """Flag one memory as corrected by another, after save_memory listed candidates.
+
+    The old memory is kept (it was true on its date) but carries an OUTDATED notice, and
+    searches answer with the new one first. Use the ids save_memory or a full search printed.
+
+    Args:
+        old_id: Id of the memory that is no longer current.
+        new_id: Id of the memory that replaces it.
+    """
+    try:
+        notice = get_memory().supersede(old_id.strip(), new_id.strip())
+    except (IHMTError, ValueError) as exc:
+        return f"Could not flag {old_id}: {exc}"
+    return f"Flagged as outdated — tell the user:\n  {notice}"
 
 
 # ------------------------------------------------------------ project tools

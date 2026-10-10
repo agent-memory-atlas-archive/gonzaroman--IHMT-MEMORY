@@ -451,7 +451,7 @@ _LEADING_DATE_PREFIX = re.compile(r"^\s*\d{4}-\d{1,2}-\d{1,2}(?:\s*\([^)]*\))?\s
 def _gist(content: str, limit: int = 90) -> str:
     """First line of a memory without its leading date, shortened."""
     first = content.strip().splitlines()[0] if content.strip() else ""
-    return truncate(_LEADING_DATE_PREFIX.sub("", first), limit).replace("'", "’")
+    return truncate(_LEADING_DATE_PREFIX.sub("", first).rstrip(" ."), limit).replace("'", "’")
 
 
 def summarize_notices(conflicts: Iterable[Contradiction], formatter: Optional[Callable[[Contradiction], str]] = None) -> List[str]:

@@ -139,6 +139,10 @@ class IHMT:
         """Every attribute whose value changed over time."""
         return self.resolver.detect_conflicts(**kwargs)
 
+    def supersede(self, old_leaf_id: str, new_leaf_id: str) -> str:
+        """Record that one memory corrects another; return the user-facing notice."""
+        return self.resolver.supersede_leaf(old_leaf_id, new_leaf_id)
+
     def notices(self, **kwargs: Any) -> List[str]:
         """User-facing contradiction notices."""
         return [c.render_notice() for c in self.resolver.detect_conflicts(**kwargs)]

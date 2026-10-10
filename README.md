@@ -15,9 +15,11 @@ any of your agents.
   retrieves only what the question needs — typically 200–900 tokens, whether the memory holds 50
   entries or 50,000, because search walks a tree instead of reading everything.
   [Honest numbers](GUIDE.md#11-honest-numbers), including where it does *not* save.
-- **Understands time.** When something changes ("I moved to Valencia"), the old fact is kept as
-  history and flagged `OUTDATED` if it comes up. When a question is ambiguous ("Luis" — which one?),
-  it asks instead of guessing.
+- **Understands time.** When something changes ("I moved to Valencia", "staging is on PostgreSQL 17
+  now"), the old memory is kept as history, flagged `OUTDATED`, and searches answer with the current
+  one first. Where you live, where you work and your stack are tracked automatically; any other
+  correction is linked when the agent saves it with `replaces`. When a question is ambiguous ("Luis"
+  — which one?), it asks instead of guessing.
 - **Portable.** Your memory is one folder of plain text files. Copy it to another computer, back it
   up, or put it under version control — it works wherever you put it.
 - **Local, private and readable.** No cloud, no database, no account: IHMT stores everything on your
@@ -200,7 +202,7 @@ bilingual (ES/EN) and read-only over the memory: it never deletes or edits a lea
 
 ## Use it from Claude Code (MCP)
 
-`mcp_server.py` exposes the tree to Claude Code as eight tools in three families: long-term memory,
+`mcp_server.py` exposes the tree to Claude Code as nine tools in three families: long-term memory,
 project indexes and session scratch memory. The core stays dependency-free; the
 SDK is an optional extra:
 
@@ -239,7 +241,8 @@ one shared directory for a single cross-project memory, or give each project its
 | Tool | Behaviour |
 |---|---|
 | `search_memory(query, clue=None, detail="compact")` | Walks the tree. Compact output: the best memory with its date and `OUTDATED` notices, one line per other match; `detail="full"` adds ids, tree paths and excerpts. An ambiguous query returns an `AMBIGUOUS` block listing the candidates instead of guessing — call again with `clue`. A query that matches nothing says so, and so does one whose closest entry shares only a stray word with it (`NOT FOUND`). |
-| `save_memory(content, domain="general", content_type="auto")` | Classifies, splits and stores the text, extracts dated facts, and keeps the tree consolidated. Reports how it was filed and — if the save contradicts something remembered earlier — the notice to relay to the user. |
+| `save_memory(content, domain="general", content_type="auto", replaces="")` | Classifies, splits and stores the text, extracts dated facts, and keeps the tree consolidated. Reports how it was filed and — if the save contradicts something remembered earlier — the notice to relay to the user. With `replaces` (a few words describing an earlier memory) the save is recorded as its correction: the old memory is flagged `OUTDATED` and searches answer with the new one first. |
+| `mark_outdated(old_id, new_id)` | Flags one memory as corrected by another, when `save_memory` found several candidates for `replaces` and listed their ids. |
 | `project_map(path, detail="files", subpath="")` | Compact map of a codebase: files with their size in tokens and, with `detail="symbols"`, each method with its line range. Built from the sync manifest, without opening leaves. |
 | `find_code(query, path, scope="main", subpath="", clue=None, max_tokens=1500)` | Returns only the symbol that answers the query, as `file:first-last` + code. `scope` is `main` (skip tests), `test` or `all`. |
 | `read_file(path, force=False)` | Reads a file and remembers what it handed out this session: a repeated read answers `UNCHANGED` or only a unified diff. |
@@ -542,7 +545,7 @@ ihmt/
   project_index.py          ProjectIndex: per-project code cache with checksum sync
   conflict_resolver.py      ConflictResolver + timeline manager
 ihmt_gui/                   local graphical interface (stdlib only)
-mcp_server.py               MCP server: the eight tools
+mcp_server.py               MCP server: the nine tools
 init_ihmt.py · main.py · gui.py · examples/ · tests/
 GUIDE.md                    installation and usage guide
 INSTALL.md                  installation instructions for AI agents

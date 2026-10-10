@@ -117,6 +117,8 @@ holidays" and it combines both to find the right one.
 keeps both. Valencia becomes the **active** value, Madrid the **historical** one, and when the old
 note comes back it carries a notice: *"On 2024-03-11 you said user location = 'Madrid', but on
 2026-02-03 you updated to 'Valencia'."* Nothing is deleted: you can still ask where you lived in 2024.
+IHMT spots that kind of change by itself for where you live, where you work, your stack and clinical
+fields; any other correction is linked when the agent saves it with `replaces` (section 6.1).
 
 ### What it is not for
 
@@ -440,8 +442,10 @@ I have since changed.
 
 Call `save_memory` when I say something durable: decisions and why, how my environment is set up, how
 I want you to work, people and projects, code or procedures I want to keep, and above all
-**corrections** — when something changes, save the new version; IHMT dates it and marks the old one
-as historical.
+**corrections** — when something changes, save the new version and pass `replaces` with a few words
+describing the old memory ("RainDesktop version 1.3"). IHMT flags the old one as OUTDATED and answers
+with the new one from then on. If it lists several candidates instead, pick the right one with
+`mark_outdated`.
 
 When I say "remember this" or "save this", that is `save_memory`.
 
@@ -680,11 +684,11 @@ Once connected, you just talk. Claude decides when to search and when to save (C
 behave the same way, with the same tools and outputs); you can also ask
 explicitly ("remember that…", "what did we decide about…").
 
-The server exposes **eight tools** in three families. Below, each one with a **real** output.
+The server exposes **nine tools** in three families. Below, each one with a **real** output.
 
 ### 6.1 Long-term memory (lasts between sessions)
 
-#### `save_memory(content, domain="general", content_type="auto")`
+#### `save_memory(content, domain="general", content_type="auto", replaces="")`
 
 Classifies the text, splits it without breaking logical blocks, stores it, and extracts dated facts.
 If the new text contradicts something saved earlier, it says so.
@@ -707,6 +711,36 @@ This updates something remembered earlier — tell the user:
   timeline depend on it. Without a date, the moment of saving is used.
 - Leave `domain` and `content_type` at their defaults; detection is right almost always. Valid
   `content_type` values: `auto`, `code`, `narrative`, `clinical`, `personal`, `process`, `generic`.
+
+**Saving a correction.** IHMT notices a change on its own only for a few kinds of fact: where you
+live, where you work, your stack, and clinical fields. For anything else — a version number, a
+decision you reversed, a setting that changed — pass `replaces` with a few words describing the old
+memory:
+
+```
+save_memory("2026-08-20: Staging now runs PostgreSQL 17; 15 is gone.",
+            replaces="staging database PostgreSQL version")
+```
+
+```
+Saved 1 memory entry (~13 tokens) as GENERIC in domain 'general'.
+Memory now holds 2 entries across 2 domains (0 summary nodes, depth 0).
+
+This corrects an earlier memory, now flagged OUTDATED — tell the user:
+  On 2026-03-02 this was saved: 'The staging database runs PostgreSQL 15 on a shared cluster', but on 2026-08-20 it was corrected: 'Staging now runs PostgreSQL 17; 15 is gone'.
+```
+
+From then on a search for the staging database answers with PostgreSQL 17 first and shows the old
+memory after it, with its notice. If `replaces` matches several memories equally, nothing is flagged:
+the answer lists their ids and the agent picks one with `mark_outdated(old_id, new_id)`. A memory
+that starts with `CORRECTION:` is linked to its predecessor without `replaces`, but only when one
+earlier memory clearly matches most of its words.
+
+#### `mark_outdated(old_id, new_id)`
+
+Flags one memory as corrected by another. Use it with the ids `save_memory` listed when `replaces`
+was ambiguous (or that a `detail="full"` search shows). The old memory is not deleted — it was true
+on its date — but it carries an `OUTDATED` notice and searches put the new one first.
 
 #### `search_memory(query, clue=None, detail="compact")`
 
