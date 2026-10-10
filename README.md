@@ -238,7 +238,7 @@ one shared directory for a single cross-project memory, or give each project its
 
 | Tool | Behaviour |
 |---|---|
-| `search_memory(query, clue=None, detail="compact")` | Walks the tree. Compact output: the best memory with its date and `OUTDATED` notices, one line per other match; `detail="full"` adds ids, tree paths and excerpts. An ambiguous query returns an `AMBIGUOUS` block listing the candidates instead of guessing — call again with `clue`. A query that matches nothing says so. |
+| `search_memory(query, clue=None, detail="compact")` | Walks the tree. Compact output: the best memory with its date and `OUTDATED` notices, one line per other match; `detail="full"` adds ids, tree paths and excerpts. An ambiguous query returns an `AMBIGUOUS` block listing the candidates instead of guessing — call again with `clue`. A query that matches nothing says so, and so does one whose closest entry shares only a stray word with it (`NOT FOUND`). |
 | `save_memory(content, domain="general", content_type="auto")` | Classifies, splits and stores the text, extracts dated facts, and keeps the tree consolidated. Reports how it was filed and — if the save contradicts something remembered earlier — the notice to relay to the user. |
 | `project_map(path, detail="files", subpath="")` | Compact map of a codebase: files with their size in tokens and, with `detail="symbols"`, each method with its line range. Built from the sync manifest, without opening leaves. |
 | `find_code(query, path, scope="main", subpath="", clue=None, max_tokens=1500)` | Returns only the symbol that answers the query, as `file:first-last` + code. `scope` is `main` (skip tests), `test` or `all`. |

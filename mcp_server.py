@@ -232,6 +232,20 @@ def _format_clue_request(response: SearchResponse) -> str:
     return "\n".join(lines)
 
 
+def _format_weak(response: SearchResponse, empty_hint: str) -> str:
+    """Render a search whose best leaf only echoes a word or two of the query."""
+    lines = [
+        f'NOT FOUND: nothing in memory clearly matches "{response.query}" '
+        f"(the closest entry holds {response.coverage:.0%} of the query's words). "
+        "Tell the user nothing is stored about it rather than guessing. " + empty_hint,
+        "",
+        "Closest entries, probably unrelated:",
+    ]
+    for result in response.results[:3]:
+        lines.append(f"  [{result.domain}] {result.timestamp[:10] or 'undated'} · {result.title}")
+    return "\n".join(lines)
+
+
 def _search(memory: IHMT, query: str, clue: Optional[str], detail: str, empty_hint: str) -> str:
     """Shared body of ``search_memory`` and ``recall``."""
     if not query or not query.strip():
@@ -241,6 +255,8 @@ def _search(memory: IHMT, query: str, clue: Optional[str], detail: str, empty_hi
     response = memory.search(query, top_k=MAX_RESULTS, clue=clue)
     if not response.results:
         return f'No memory found for "{query}"' + (f' (with clue "{clue}")' if clue else "") + f". {empty_hint}"
+    if response.weak:
+        return _format_weak(response, empty_hint)
     if response.needs_clue:
         return _format_clue_request(response)
     return _format_compact(response) if detail == "compact" else _format_results(response)

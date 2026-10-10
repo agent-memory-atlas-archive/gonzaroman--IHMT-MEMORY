@@ -71,6 +71,21 @@ class DescentTests(StoreTestCase):
         self.assertLess(response.confidence, self.memory.config.confidence_threshold)
         self.assertIsNone(response.clue_request)
 
+    def test_a_query_sharing_one_stray_word_is_no_clear_match(self) -> None:
+        # Only "Madrid" is stored; the other six words of the question are not.
+        # Offering the Madrid entries as a choice would be a false AMBIGUOUS.
+        response = self.memory.search("billete avión Madrid Tokio noviembre escala Doha")
+
+        self.assertTrue(response.weak, f"coverage {response.coverage}")
+        self.assertFalse(response.found)
+        self.assertIsNone(response.clue_request)
+
+    def test_a_specific_query_is_not_weak(self) -> None:
+        response = self.memory.search("reserveStock soft hold quantity")
+
+        self.assertFalse(response.weak)
+        self.assertTrue(response.found)
+
 
 class ClueLoopTests(StoreTestCase):
     """An ambiguous query asks for a clue instead of guessing."""

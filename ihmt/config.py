@@ -33,6 +33,9 @@ class IHMTConfig:
         beam_width: Branches kept alive per level during the tree descent.
         confidence_threshold: Minimum normalized score for an answer to be
             returned without asking the user for a clue.
+        min_coverage: Fraction of the query's distinct terms the best leaf
+            must contain to count as a match at all. Below it the search
+            reports no clear match instead of asking for a clue.
         ambiguity_margin: Minimum score gap between the best and second-best
             candidate branch. A smaller gap is treated as ambiguity.
         max_clue_rounds: Maximum iterations of the interactive clue loop.
@@ -53,6 +56,7 @@ class IHMTConfig:
     min_tokens: int = 120
     beam_width: int = 3
     confidence_threshold: float = 0.45
+    min_coverage: float = 0.3
     ambiguity_margin: float = 0.18
     max_clue_rounds: int = 3
     summarizer_backend: str = "heuristic"
@@ -151,5 +155,7 @@ class IHMTConfig:
             raise ValueError("beam_width must be >= 1")
         if not 0.0 <= self.confidence_threshold <= 1.0:
             raise ValueError("confidence_threshold must lie in [0, 1]")
+        if not 0.0 <= self.min_coverage <= 1.0:
+            raise ValueError("min_coverage must lie in [0, 1]")
         if self.code_chunk_mode not in ("pack", "symbol"):
             raise ValueError('code_chunk_mode must be "pack" or "symbol"')

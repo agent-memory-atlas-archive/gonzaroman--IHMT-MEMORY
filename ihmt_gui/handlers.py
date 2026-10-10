@@ -257,6 +257,8 @@ class GuiApi:
             "clue": clue or "",
             "confidence": round(response.confidence, 4),
             "ambiguous": response.ambiguous,
+            "weak": response.weak,
+            "coverage": round(response.coverage, 4),
             "node_reads": response.node_reads,
             "leaf_reads": response.leaf_reads,
             "depth": response.depth,

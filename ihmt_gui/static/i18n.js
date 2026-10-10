@@ -134,6 +134,9 @@ const STRINGS = {
     "diagnose.ambiguousHelp":
       "Hay varias memorias que encajan igual de bien. IHMT no elige al azar: añade una pista y vuelve a buscar.",
     "diagnose.noResults": "No hay nada guardado sobre esto.",
+    "diagnose.weak": "Nada encaja claramente",
+    "diagnose.weakHelp":
+      "Lo más parecido solo comparte una o dos palabras con la búsqueda: probablemente no hay nada guardado sobre esto.",
     "diagnose.tryClue": "Buscar con esta pista",
 
     "timeline.heading": "Qué ha cambiado con el tiempo",
@@ -281,6 +284,9 @@ const STRINGS = {
     "diagnose.ambiguousHelp":
       "Several memories match equally well. IHMT will not pick one at random: add a clue and search again.",
     "diagnose.noResults": "Nothing is stored about this.",
+    "diagnose.weak": "No clear match",
+    "diagnose.weakHelp":
+      "The closest entries share only a word or two with the query: most likely nothing is stored about this.",
     "diagnose.tryClue": "Search with this clue",
 
     "timeline.heading": "What changed over time",

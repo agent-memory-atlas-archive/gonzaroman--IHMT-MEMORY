@@ -126,6 +126,14 @@ class McpToolTests(unittest.TestCase):
         self.assertIn("No memory found", output)
         self.assertNotIn("Benidorm", output)
 
+    def test_a_query_sharing_one_stray_word_reports_not_found(self) -> None:
+        self.srv.save_memory("2024-07-22: Vacaciones en Benidorm con Luis, mi primo.")
+        self.srv.save_memory("2025-01-15: Comida familiar con mi primo Luis y los niños.")
+
+        output = self.srv.search_memory("interfaz gráfica navegador pantallas Luis diagnóstico cronología")
+        self.assertTrue(output.startswith("NOT FOUND"), output)
+        self.assertNotIn("AMBIGUOUS", output)
+
     def test_an_ambiguous_query_asks_for_a_clue_instead_of_guessing(self) -> None:
         self.srv.save_memory("2024-07-22: Vacaciones en Benidorm con Luis, mi primo.")
         self.srv.save_memory("2024-11-30: Luis Marín revisó el pull request de reserveStock.")

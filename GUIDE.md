@@ -750,7 +750,17 @@ Competing memories:
      2025-11-30: Luis Marín reviewed the reserveStock pull request at work.
 ```
 
-Claude then asks you, or retries with a clue:
+**When nothing clearly matches**, it says so. If the closest entry holds only a stray word of the
+question (less than 30 % of its words, `min_coverage` in the config), the answer is `NOT FOUND` with
+the closest entries listed as probably unrelated, not an `AMBIGUOUS` choice between them:
+
+```
+NOT FOUND: nothing in memory clearly matches "flight to Tokyo in November with a stop in Doha"
+(the closest entry holds 14% of the query's words). Tell the user nothing is stored about it
+rather than guessing.
+```
+
+Back to the ambiguous case: Claude then asks you, or retries with a clue:
 
 ```
 search_memory("Luis", clue="Benidorm holidays")

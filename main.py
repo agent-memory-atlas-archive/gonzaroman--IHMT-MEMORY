@@ -166,7 +166,9 @@ def cmd_search(args: argparse.Namespace) -> int:
     if emit(response.to_dict(include_content=args.full), args.json):
         return 0
     print_response(response, limit=args.top_k, show_content=args.full)
-    if response.needs_clue:
+    if response.weak:
+        print("\nno clear match — these only share a word or two with the query")
+    elif response.needs_clue:
         print("\nthis query is ambiguous — use 'python main.py ask' to run the clue loop")
     return 0
 

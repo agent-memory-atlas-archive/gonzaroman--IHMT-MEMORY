@@ -158,7 +158,9 @@ class SearchResponse:
     query: str
     results: List[SearchResult] = field(default_factory=list)
     confidence: float = 0.0
+    coverage: float = 0.0
     ambiguous: bool = False
+    weak: bool = False
     clue_request: Optional[ClueRequest] = None
     node_reads: int = 0
     leaf_reads: int = 0
@@ -172,6 +174,11 @@ class SearchResponse:
         return self.clue_request is not None
 
     @property
+    def found(self) -> bool:
+        """Whether the search produced a real match (not just a weak echo)."""
+        return bool(self.results) and not self.weak
+
+    @property
     def best(self) -> Optional[SearchResult]:
         return self.results[0] if self.results else None
 
@@ -179,7 +186,9 @@ class SearchResponse:
         return {
             "query": self.query,
             "confidence": round(self.confidence, 4),
+            "coverage": round(self.coverage, 4),
             "ambiguous": self.ambiguous,
+            "weak": self.weak,
             "clues_used": self.clues_used,
             "node_reads": self.node_reads,
             "leaf_reads": self.leaf_reads,
@@ -386,6 +395,12 @@ class SemanticNavigator:
 
         # ---- confidence & ambiguity ---------------------------------------
         response.confidence = self._confidence(ordered)
+        response.coverage = round(ordered[0].coverage, 4) if ordered else 0.0
+        if ordered and response.coverage < self.config.min_coverage:
+            # The best leaf holds only a stray word or two of the query: that
+            # is "nothing clearly stored about this", not a choice to offer.
+            response.weak = True
+            return response
         clue_request = self._maybe_clue_request(
             query,
             ordered,

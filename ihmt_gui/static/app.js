@@ -724,6 +724,17 @@ async function runSearch(clueOverride) {
     ])
   );
 
+  if (data.weak) {
+    box.append(
+      el("div", { class: "notice" }, [
+        el("div", {}, [
+          el("strong", { text: t("diagnose.weak") }),
+          el("small", { text: t("diagnose.weakHelp") }),
+        ]),
+      ])
+    );
+  }
+
   if (data.clue_request) {
     box.append(
       el("div", { class: "notice" }, [
