@@ -16,7 +16,7 @@ from .code import BraceScanner, CodeAwareChunker
 from .generic import GenericChunker
 from .narrative import NarrativeChunker
 from .process import ProcessChunker
-from .temporal import TemporalChunker, extract_date
+from .temporal import TemporalChunker, extract_date, leading_date
 
 __all__ = [
     "Block",
@@ -30,6 +30,7 @@ __all__ = [
     "TemporalChunker",
     "extract_date",
     "get_chunker",
+    "leading_date",
 ]
 
 

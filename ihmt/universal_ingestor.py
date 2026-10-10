@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
-from .chunkers import Chunk, get_chunker
+from .chunkers import Chunk, get_chunker, leading_date
 from .detectors import Detection, DomainDetector
 from .models import DataType, IHMTError, LeafStatus, MemoryLeaf, NodeNotFoundError, Span
 from .storage import MemoryStore
@@ -281,9 +281,14 @@ class UniversalIngestor:
         is_code = detection.data_type is DataType.CODE
         content = chunk.text
 
-        timestamp = chunk.timestamp or forced_timestamp or utc_now_iso()
+        # A date the text opens with says when it was true, whatever the type:
+        # without this, only journal and clinical material kept its own date
+        # and a "2026-03-15: release procedure ..." note was dated by its save.
+        opening_date = None if is_code or chunk.timestamp else leading_date(content)
+        timestamp = chunk.timestamp or opening_date or forced_timestamp or utc_now_iso()
         tags = dedupe(
-            list(chunk.tags)
+            ([f"date:{opening_date[:10]}"] if opening_date else [])
+            + list(chunk.tags)
             + list(extra_tags)
             + [f"type:{detection.data_type.value.lower()}", f"domain:{domain}"]
             + ([f"lang:{detection.language}"] if detection.language else []),

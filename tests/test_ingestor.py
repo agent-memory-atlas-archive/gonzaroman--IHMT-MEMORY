@@ -70,6 +70,29 @@ class IngestionTests(StoreTestCase):
             self.assertGreaterEqual(leaf.span.end_line, leaf.span.start_line)
             self.assertIn(f"type:{leaf.data_type.value.lower()}", leaf.tags)
 
+    def test_a_note_opening_with_a_date_is_dated_by_it_whatever_its_type(self) -> None:
+        note = (
+            "2026-03-15: Release procedure: 1) merge to main, 2) CI builds the image, "
+            "3) deploy to staging, 4) smoke test, 5) promote to production."
+        )
+        report = self.memory.ingest_text(note, source="mcp://test", data_type=DataType.PROCESS)
+        leaf = self.leaves_of(report)[0]
+
+        self.assertTrue(leaf.timestamp.startswith("2026-03-15"), leaf.timestamp)
+        self.assertIn("date:2026-03-15", leaf.tags)
+
+    def test_a_date_inside_the_text_does_not_date_it(self) -> None:
+        note = "Release procedure, first written on 2026-03-15: merge, build, deploy, smoke test, promote."
+        report = self.memory.ingest_text(note, source="mcp://test", data_type=DataType.PROCESS)
+
+        self.assertFalse(self.leaves_of(report)[0].timestamp.startswith("2026-03-15"))
+
+    def test_code_is_never_dated_by_its_first_line(self) -> None:
+        code = "# 2020-01-01 initial version\ndef total(items):\n    return sum(items)\n"
+        report = self.memory.ingest_text(code, source="calc.py", data_type=DataType.CODE)
+
+        self.assertFalse(self.leaves_of(report)[0].timestamp.startswith("2020-01-01"))
+
     def test_leaves_land_in_a_directory_named_after_their_domain(self) -> None:
         report = self.ingest_example("recipe_paella.md")
         for leaf_id in report.leaf_ids:

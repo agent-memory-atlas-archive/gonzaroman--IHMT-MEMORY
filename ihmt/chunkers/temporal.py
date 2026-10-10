@@ -57,6 +57,22 @@ CLINICAL_MARKERS = re.compile(
 CHAT_TURN = re.compile(r"^\s*(?:\[\s*\d{1,2}:\d{2}\s*\]\s*)?([A-ZÀ-Ü][\wÀ-ÿ .'-]{1,24}):\s")
 
 
+#: A date opening the text: ``2026-03-15: ...``, ``# 2026-03-15``, ``[15/03/2026]``.
+_LEADING_DATE = re.compile(r"^\s*[#*\[(]*\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4})\b")
+
+
+def leading_date(text: str, *, day_first: bool = True) -> Optional[str]:
+    """Date the text *opens with*, as an ISO-8601 UTC timestamp, else ``None``.
+
+    Stricter than :func:`extract_date`, which takes the first date anywhere:
+    only a date at the very start of the text says when the text was true.
+    This is how agents write memories ("2026-03-15: release procedure ..."),
+    whatever the material type.
+    """
+    match = _LEADING_DATE.match(text)
+    return extract_date(match.group(1), day_first=day_first) if match else None
+
+
 def extract_date(text: str, *, day_first: bool = True) -> Optional[str]:
     """Extract the first date in ``text`` as an ISO-8601 UTC timestamp.
 
