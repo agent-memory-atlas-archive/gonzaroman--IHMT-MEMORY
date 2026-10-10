@@ -88,6 +88,12 @@ def year_of(value: str | None) -> str:
     return str(parsed.year) if parsed else "?"
 
 
+def date_of(value: str | None) -> str:
+    """Return the ``YYYY-MM-DD`` part of a timestamp, or ``"?"`` if unknown."""
+    parsed = parse_timestamp(value)
+    return parsed.date().isoformat() if parsed else "?"
+
+
 # --------------------------------------------------------------------- hashing
 def sha256_hex(text: str) -> str:
     """Hex SHA-256 digest of ``text`` encoded as UTF-8."""

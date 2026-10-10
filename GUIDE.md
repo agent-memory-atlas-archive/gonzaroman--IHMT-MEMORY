@@ -115,8 +115,8 @@ holidays" and it combines both to find the right one.
 
 **c) It handles time.** If in 2024 you said "I live in Madrid" and in 2026 "I live in Valencia", it
 keeps both. Valencia becomes the **active** value, Madrid the **historical** one, and when the old
-note comes back it carries a notice: *"In 2024 you said user location = 'Madrid', but in 2026 you
-updated to 'Valencia'."* Nothing is deleted: you can still ask where you lived in 2024.
+note comes back it carries a notice: *"On 2024-03-01 you said user location = 'Madrid', but on
+2026-05-10 you updated to 'Valencia'."* Nothing is deleted: you can still ask where you lived in 2024.
 
 ### What it is not for
 
@@ -699,7 +699,7 @@ Memory now holds 2 entries across 1 domains (0 summary nodes, depth 0).
 Extracted 1 dated fact(s) into the timeline.
 
 This updates something remembered earlier — tell the user:
-  In 2024 you said user location = 'Madrid', but in 2026 you updated to 'Valencia'.
+  On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to 'Valencia'.
   (the earlier value is kept as history, retrievable for questions about that period)
 ```
 
@@ -725,7 +725,7 @@ search_memory("testing framework decision unittest pytest")
 
 ```
 [personal] 2024-05-10 (confidence 0.97)
-OUTDATED: In 2024 you said user location = 'Madrid', but in 2026 you updated to 'Valencia'.
+OUTDATED: On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to 'Valencia'.
 2024-05-10: I live in Madrid, in the Lavapiés neighbourhood.
 
 Also matching: [personal] 2026-02-03 · claude-code · 2026-02-03: I live in Valencia, near the Turia gardens.
@@ -1069,7 +1069,7 @@ python3 main.py conflicts          # what changed over time
 $ python3 main.py conflicts
 3 contradiction(s) detected:
 
-  ⚠ In 2024 you said user location = 'Madrid', but in 2026 you updated to 'Valencia'.
+  ⚠ On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to 'Valencia'.
      history: Madrid [2024-03-11, HISTORICAL] → Valencia [2026-02-03, ACTIVE]
   …
 ```
@@ -1139,7 +1139,7 @@ memory.resolver.state_at("2024-12-31")["user::location"].value  # 'Madrid'    (b
 
 for c in memory.conflicts():
     print(c.render_notice())
-    # "In 2024 you said user location = 'Madrid', but in 2026 you updated to 'Valencia'."
+    # "On 2024-03-01 you said user location = 'Madrid', but on 2026-05-10 you updated to 'Valencia'."
 ```
 
 Settings when creating a memory:

@@ -44,12 +44,12 @@ class RecencyTests(StoreTestCase):
 
         self.assertEqual(self.memory.conflicts(), [])
 
-    def test_the_notice_names_both_years_and_both_values(self) -> None:
+    def test_the_notice_names_both_dates_and_both_values(self) -> None:
         self.record_location()
         notice = self.memory.conflicts()[0].render_notice()
 
-        self.assertIn("2024", notice)
-        self.assertIn("2026", notice)
+        self.assertIn("2024-03-11", notice)
+        self.assertIn("2026-02-03", notice)
         self.assertIn("Madrid", notice)
         self.assertIn("Valencia", notice)
 
@@ -112,6 +112,20 @@ class ExtractionTests(StoreTestCase):
 
         self.assertTrue(notices, "an answer built on superseded material must carry its notice")
         self.assertTrue(any("Valencia" in notice for notice in notices))
+
+    def test_a_notice_stamped_with_older_wording_is_not_shown_twice(self) -> None:
+        historical = self.memory.resolver.timeline("user", "location")[0]
+        leaf = self.memory.get_leaf(historical.source_leaf_id)
+        for record in leaf.extra["superseded_facts"]:
+            if record["attribute"] == "location":
+                record["notice"] = "In 2024 you said user location = 'Madrid', but in 2026 you updated to 'Valencia'."
+        self.memory.store.save_leaf(leaf)
+
+        notices = self.memory.resolver.notices_for_leaf(self.memory.get_leaf(leaf.leaf_id))
+        about_location = [n for n in notices if "location" in n]
+
+        self.assertEqual(len(about_location), 1)
+        self.assertTrue(about_location[0].startswith("On 2024-03-11"))
 
     def test_clinical_facts_are_attributed_to_the_patient(self) -> None:
         self.ingest_example("clinical_history.txt")

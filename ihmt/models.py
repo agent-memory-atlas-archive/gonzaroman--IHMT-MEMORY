@@ -546,12 +546,14 @@ class Contradiction:
 
     def render_notice(self) -> str:
         """Transparent, user-facing statement of the contradiction."""
-        from .textutils import year_of
+        from .textutils import date_of
 
+        # Full dates, not years: two values from the same year would otherwise
+        # read "in 2026 you said ... but in 2026 you updated to ...".
         return (
-            f"In {year_of(self.old.timestamp)} you said "
+            f"On {date_of(self.old.timestamp)} you said "
             f"{self.subject} {self.attribute} = '{self.old.value}', "
-            f"but in {year_of(self.new.timestamp)} you updated to '{self.new.value}'."
+            f"but on {date_of(self.new.timestamp)} you updated to '{self.new.value}'."
         )
 
     def to_dict(self) -> Dict[str, Any]:

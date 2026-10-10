@@ -10,7 +10,7 @@ weighting** over a per-attribute timeline:
 * every earlier value becomes ``HISTORICAL``, stamped with ``superseded_by``
   and a ``valid_from``/``valid_to`` interval, so the past stays queryable;
 * whenever a value changes, a transparent notice is produced for the user:
-  *"In 2024 you said ... but in 2026 you updated to ..."*.
+  *"On 2024-03-01 you said ... but on 2026-05-10 you updated to ..."*.
 
 Facts arrive either programmatically through :meth:`ConflictResolver.record_fact`
 or by pattern extraction from leaves during ingestion.
@@ -335,7 +335,8 @@ class ConflictResolver:
         Returned by the navigator alongside the leaf, so an answer built on
         outdated material always arrives with its correction.
         """
-        notices = [str(item.get("notice", "")) for item in leaf.extra.get("superseded_facts", [])]
+        notices: List[str] = []
+        covered = set()
         for fact in self.facts:
             if fact.source_leaf_id != leaf.leaf_id or fact.status is not LeafStatus.HISTORICAL:
                 continue
@@ -343,9 +344,18 @@ class ConflictResolver:
             if current is None or normalize(current.value) == normalize(fact.value):
                 continue
             notice = Contradiction(fact.subject, fact.attribute, fact, current).render_notice()
+            covered.add((fact.attribute, normalize(fact.value)))
             if notice not in notices:
                 notices.append(notice)
-        return [n for n in notices if n]
+        # Notices stamped on the leaf when it was superseded. One already
+        # rendered from the live timeline above wins, so a leaf flagged by an
+        # older release (with older wording) does not show the change twice.
+        for item in leaf.extra.get("superseded_facts", []):
+            notice = str(item.get("notice", ""))
+            key = (str(item.get("attribute", "")), normalize(str(item.get("old_value", ""))))
+            if notice and key not in covered and notice not in notices:
+                notices.append(notice)
+        return notices
 
     def report(self, *, subject: Optional[str] = None) -> Dict[str, Any]:
         """Machine-readable snapshot of state, history and contradictions."""
