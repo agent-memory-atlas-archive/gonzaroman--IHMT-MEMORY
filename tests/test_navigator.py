@@ -87,6 +87,58 @@ class DescentTests(StoreTestCase):
         self.assertTrue(response.found)
 
 
+
+class CrossLevelRankingTests(StoreTestCase):
+    """Leaves found at different depths are compared on what they hold."""
+
+    # The default branch factor: the shape in which the bug showed up, with the
+    # PostgreSQL decision inside a branch and the staging note still at the top.
+    branch_factor = 8
+    target_tokens = 2000
+    max_tokens = 3000
+
+    NOTES = [
+        "2026-01-12: Started Tidewater, a booking app for small sailing schools. Backend in Python 3.12 with FastAPI, frontend in SvelteKit, deployed on Fly.io.",
+        "2026-01-12: I live in Lisbon. I work remotely, and most Tidewater customers are sailing schools in Portugal and Spain.",
+        "2026-01-14: Decided on PostgreSQL over SQLite for Tidewater because bookings need row-level locking when two students grab the last seat on a boat.",
+        "2026-01-20: Dev setup: macOS, uv for Python environments, pnpm for the frontend, Postgres through Docker Compose (docker compose up db). Tests run with pytest -q.",
+        "2026-02-03: Prefer small pull requests (under 300 lines) and squash merges. Commit messages in English, imperative mood.",
+        "2026-02-10: Luis Ortega is the backend lead at Tidewater. He reviews every database migration before it is merged.",
+        "2026-02-18: Luis Fernández is the freelance designer who made the Tidewater landing page and the logo. Paid per project, invoices at the end of each month.",
+        "2026-03-09: Decision: money is stored as integer cents everywhere, never floats. A rounding bug on a 3-day course price (199.99 x 3) charged a customer one cent less.",
+        "2026-03-15: Release procedure for Tidewater: 1) merge to main, 2) CI builds the image, 3) fly deploy --strategy rolling to staging, 4) smoke test the booking flow, 5) promote to production with fly deploy -a tidewater-prod.",
+        "2026-03-28: Timezones: all timestamps stored in UTC; schools see local time. The Lisbon school once got bookings shifted one hour on the DST change because a cron used local time.",
+        "2026-04-06: Stripe webhooks must be idempotent: we store the event id in processed_events and skip duplicates. Stripe retries for up to 3 days.",
+        "2026-04-19: Prefers unittest-style plain asserts in pytest, no extra plugins except pytest-asyncio.",
+        "2026-05-02: The booking calendar is slow above 400 slots per week. Fixed by loading one week at a time and caching availability for 60 seconds.",
+        "2026-05-21: Maria Costa runs the Porto sailing school, our first paying customer. She wants SMS reminders 24 hours before each class.",
+        "2026-06-04: SMS reminders go through Twilio. Decided against WhatsApp for now: templates need approval and schools found it confusing.",
+        "2026-06-30: Moved CI from GitHub Actions minutes to a self-hosted runner on a Hetzner box because the test suite with Postgres took 14 minutes.",
+        "2026-07-12: Accessibility: every form field has a visible label; the booking flow was tested with VoiceOver on macOS and iOS.",
+        "2026-08-27: Backups: nightly pg_dump to an S3 bucket in eu-west-1, kept 30 days. Restore tested on 2026-08-27 in 11 minutes.",
+        "2026-09-08: Do not use the ORM for the availability query: the raw SQL with a lateral join is 20x faster. Keep it in queries/availability.sql.",
+        "2026-09-15: The mobile app is postponed until spring 2027. The web app works well on phones and schools asked for reporting first.",
+        "2026-09-29: Monthly report for schools: bookings, cancellations and revenue per instructor, exported as CSV and PDF.",
+        "2026-10-02: Luis Ortega suggested partitioning the bookings table by year once it passes 5 million rows. Not needed yet (1.2 million today).",
+        "2026-07-01: I moved to Porto. It puts me closer to the first schools using Tidewater, and the timezone is the same, so no cron changes.",
+        "2026-03-02: Staging database runs PostgreSQL 15 on a shared Fly.io cluster.",
+        "2026-08-20: Staging upgraded to PostgreSQL 17; PostgreSQL 15 is no longer used anywhere.",
+    ]
+
+    def setUp(self) -> None:
+        super().setUp()
+        # Saved one by one as save_memory does, without a final flush: the
+        # last notes stay at the top level while older ones sit in a branch.
+        for note in self.NOTES:
+            self.memory.ingest_text(note, source="mcp://claude-code", tags=["source:claude-code"])
+
+    def test_a_leaf_holding_the_whole_query_beats_one_sharing_a_word_at_another_level(self) -> None:
+        response = self.memory.search("staging database PostgreSQL version", top_k=3)
+
+        self.assertIn("Staging", response.best.content)
+        self.assertNotIn("SQLite", response.best.content)
+
+
 class ClueLoopTests(StoreTestCase):
     """An ambiguous query asks for a clue instead of guessing."""
 

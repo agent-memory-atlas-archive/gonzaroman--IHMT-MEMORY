@@ -68,7 +68,7 @@ from ihmt import IHMT  # noqa: E402  (path setup must precede the import)
 from ihmt.models import DataType, IHMTError  # noqa: E402
 from ihmt.project_index import ProjectIndex  # noqa: E402
 from ihmt.semantic_navigator import SCOPES, SearchResponse  # noqa: E402
-from ihmt.textutils import estimate_tokens  # noqa: E402
+from ihmt.textutils import content_terms, estimate_tokens  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="ihmt-mcp: %(message)s")
 logger = logging.getLogger("ihmt.mcp")
@@ -388,10 +388,15 @@ _CORRECTION_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
+#: Share of the ``replaces`` words an earlier memory's text must contain to be
+#: flagged as the one corrected.
+REPLACES_COVERAGE = 0.5
 #: A memory starting "CORRECTION:" is linked to its predecessor on its own only
-#: when the predecessor matches this much of its words — otherwise it would be
-#: a guess, and the agent is asked to pass ``replaces`` or call ``mark_outdated``.
+#: when the predecessor holds this much of its words — otherwise it would be a
+#: guess, and the agent is asked to pass ``replaces`` or call ``mark_outdated``.
 AUTO_CORRECTION_COVERAGE = 0.6
+#: Candidates fetched when looking for the memory a save corrects.
+CORRECTION_CANDIDATES = 8
 
 
 def _apply_correction(memory: IHMT, content: str, new_ids: List[str], replaces: str) -> List[str]:
@@ -409,18 +414,33 @@ def _apply_correction(memory: IHMT, content: str, new_ids: List[str], replaces: 
     if not query:
         return []
 
-    response = memory.search(query, top_k=MAX_RESULTS + len(new_ids))
-    candidates = [r for r in response.results if r.leaf_id not in new_ids]
+    response = memory.search(query, top_k=CORRECTION_CANDIDATES + len(new_ids))
+    terms = set(content_terms(query))
+
+    def held(result) -> float:  # type: ignore[no-untyped-def]
+        """Share of the query's words present in the memory's own text."""
+        if not terms:
+            return 0.0
+        return len(terms & set(content_terms(result.content or result.excerpt))) / len(terms)
+
+    # Flagging the wrong memory is worse than flagging none, so the choice is
+    # made on what each candidate's text actually says — search scores mix
+    # tree levels and are fine for ranking answers, not for this.
+    candidates = sorted(
+        (r for r in response.results if r.leaf_id not in new_ids),
+        key=lambda r: (-held(r), -r.score, r.leaf_id),
+    )
     new_id = new_ids[0]
-    if not candidates or response.weak:
+    needed = AUTO_CORRECTION_COVERAGE if automatic else REPLACES_COVERAGE
+    if not candidates or held(candidates[0]) < needed:
         if automatic:
             return []
-        return ["", f'No earlier memory matches "{query}", so nothing was flagged as outdated.']
+        return ["", f'No earlier memory clearly matches "{query}", so nothing was flagged as outdated.']
 
     best = candidates[0]
     margin = memory.config.ambiguity_margin
-    tied = [c for c in candidates[1:] if c.score >= best.score * (1 - margin)]
-    clear = not tied and (not automatic or response.coverage >= AUTO_CORRECTION_COVERAGE)
+    tied = [c for c in candidates[1:] if held(c) >= held(best) and c.score >= best.score * (1 - margin)]
+    clear = not tied
     if clear:
         try:
             notice = memory.supersede(best.leaf_id, new_id)

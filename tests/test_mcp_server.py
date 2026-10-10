@@ -197,6 +197,23 @@ class McpToolTests(unittest.TestCase):
 
         self.assertIn("nothing was flagged", output)
 
+    def test_replaces_flags_the_memory_whose_text_matches_not_a_related_one(self) -> None:
+        self.srv.save_memory(
+            "2026-01-14: Decided on PostgreSQL over SQLite because bookings need row-level locking when "
+            "two students grab the last seat on a boat."
+        )
+        self.srv.save_memory("2026-03-02: Staging database runs PostgreSQL 15 on a shared cluster.")
+        for filler in ("Stripe webhooks are idempotent.", "Backups go to S3 nightly.", "Money is stored in cents."):
+            self.srv.save_memory(f"2026-04-01: {filler}")
+        output = self.srv.save_memory(
+            "2026-08-20: Staging upgraded to PostgreSQL 17; 15 is gone.",
+            replaces="staging database PostgreSQL version",
+        )
+
+        self.assertIn("now flagged OUTDATED", output)
+        self.assertIn("Staging database runs PostgreSQL 15", output)
+        self.assertNotIn("row-level locking", output)
+
     def test_a_clear_correction_prefix_flags_its_predecessor(self) -> None:
         self.srv.save_memory("2026-03-02: Staging database runs PostgreSQL 15 on a shared cluster.")
         output = self.srv.save_memory("2026-08-20: CORRECTION: staging database runs PostgreSQL 17 now.")

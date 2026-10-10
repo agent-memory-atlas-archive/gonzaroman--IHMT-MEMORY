@@ -395,6 +395,14 @@ class SemanticNavigator:
             level += 1
 
         response.depth = level
+        # Leaves reach the pool from different levels of the tree, each scored
+        # by BM25 against its own siblings, so raw scores are not comparable
+        # across levels: a leaf sharing one word with the query could outrank
+        # one holding all of them because it sat at a better-scoring level.
+        # Weighting by the square of coverage — the share of the query a leaf
+        # actually holds — puts the leaf that answers the question first.
+        for candidate in leaf_pool.values():
+            candidate.score *= 0.05 + candidate.coverage**2
         ordered = sorted(leaf_pool.values(), key=lambda c: (-c.score, c.id))[:top_k]
         ordered, replaced = self._current_first(ordered, response)
         response.results = [self._materialize(c, parents, include_content, response) for c in ordered]
