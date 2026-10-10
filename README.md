@@ -1,5 +1,7 @@
 # IHMT — Infinite Hierarchical Memory Tree
 
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/gonzaroman/ihmt-memory)
+
 **Long-term memory for your AI coding agents.** Tell your agent something once — a decision, how
 your setup works, a correction — and it remembers it in every future session, in any project, with
 any of your agents.
