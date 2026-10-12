@@ -2,6 +2,8 @@
 
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/gonzaroman/ihmt-memory)
 
+<!-- mcp-name: io.github.gonzaroman/ihmt-memory -->
+
 **Long-term memory for your AI coding agents.** Tell your agent something once — a decision, how
 your setup works, a correction — and it remembers it in every future session, in any project, with
 any of your agents.
@@ -115,6 +117,35 @@ then add `default_tools_approval_mode = "approve"` to the `[mcp_servers.ihmt-mem
 
 Windows, the project scope, the graphical setup and troubleshooting are all in the
 [guide](GUIDE.md#4-installation-step-by-step).
+
+</details>
+
+<details>
+<summary><b>Install from PyPI (uvx)</b></summary>
+
+No clone and no venv: [uv](https://docs.astral.sh/uv/) downloads and runs the
+[`ihmt-memory`](https://pypi.org/project/ihmt-memory/) package. The memory goes to `~/.ihmt`; set
+`IHMT_HOME` to use another folder (for example, a memory you already have).
+
+**Claude Code**
+
+```bash
+claude mcp add ihmt-memory -s user -- uvx ihmt-memory
+claude mcp list                     # ihmt-memory … ✔ Connected
+uvx ihmt-memory --instructions >> ~/.claude/CLAUDE.md
+```
+
+**Codex** — `codex mcp add ihmt-memory -- uvx ihmt-memory`, add
+`default_tools_approval_mode = "approve"` to the `[mcp_servers.ihmt-memory]` table in
+`~/.codex/config.toml`, and run `uvx ihmt-memory --instructions >> ~/.codex/AGENTS.md`.
+
+**opencode** — add an `"ihmt-memory"` entry (`"type": "local"`, `"command": ["uvx", "ihmt-memory"]`) to
+the `"mcp"` object of `~/.config/opencode/opencode.json`, and run
+`uvx ihmt-memory --instructions >> ~/.config/opencode/AGENTS.md`.
+
+The last step matters with any install: the instructions are what make the agent search before
+answering and save corrections. `pipx install ihmt-memory` works too, with `ihmt-memory` in place of
+`uvx ihmt-memory`.
 
 </details>
 
@@ -548,6 +579,8 @@ ihmt/
   conflict_resolver.py      ConflictResolver + timeline manager
 ihmt_gui/                   local graphical interface (stdlib only)
 mcp_server.py               MCP server: the nine tools
+ihmt_launcher.py            the `ihmt-memory` command of the PyPI package (~/.ihmt by default)
+pyproject.toml · server.json   PyPI package · MCP Registry entry
 init_ihmt.py · main.py · gui.py · examples/ · tests/
 GUIDE.md                    installation and usage guide
 INSTALL.md                  installation instructions for AI agents

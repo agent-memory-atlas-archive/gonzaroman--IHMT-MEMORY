@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.gonzaroman/ihmt-memory",
+  "title": "IHMT Memory",
+  "description": "Long-term memory for AI coding agents, stored as a tree of plain local files.",
+  "repository": {
+    "url": "https://github.com/gonzaroman/IHMT-MEMORY",
+    "source": "github"
+  },
+  "version": "1.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "ihmt-memory",
+      "version": "1.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "IHMT_HOME",
+          "description": "Folder that holds the memory (created on first use). Defaults to ~/.ihmt.",
+          "format": "filepath",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
