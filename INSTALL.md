@@ -157,9 +157,10 @@ for rel in configs:
     servers = {s for s in servers if (pathlib.Path(s).parent / "ihmt" / "api.py").is_file()}
     if not servers:
         continue
-    homes = set(re.findall(r"""IHMT_HOME["']?\s*[:=]\s*["']([^"']+)["']""", text))
+    homes = {h.replace("\\\\", "\\") for h in re.findall(r"""IHMT_HOME["']?\s*[:=]\s*["']([^"']+)["']""", text)}
     found = True
-    print(f"{path}\n  REPO:      {sorted(str(pathlib.Path(s).parent) for s in servers)}\n  IHMT_HOME: {sorted(homes) or ['(not set: defaults to REPO)']}")
+    repos = ", ".join(sorted(str(pathlib.Path(s).parent) for s in servers))
+    print(f"{path}\n  REPO:      {repos}\n  IHMT_HOME: {', '.join(sorted(homes)) or '(not set: defaults to REPO)'}")
 if not found:
     print("No existing IHMT installation found.")
 PY
