@@ -7,6 +7,7 @@ HTTP to the server to check the token, the routing and the headers.
 from __future__ import annotations
 
 import json
+import os
 import unittest
 import urllib.error
 import urllib.parse
@@ -218,6 +219,19 @@ class FolderTests(ApiTestCase):
 
         self.assertIsNotNone(current, "the working folder must appear in its parent's listing")
         self.assertTrue(current["is_memory"], "and be flagged as an existing memory")
+
+    @unittest.skipIf(os.name == "nt" or os.geteuid() == 0, "needs POSIX permissions and a non-root user")
+    def test_an_unreadable_folder_does_not_empty_the_listing(self) -> None:
+        # Linux's /tmp holds root-only folders; checking them for a memory must not fail the whole listing.
+        locked = self.workspace / "locked"
+        (locked / "inside").mkdir(parents=True)
+        (self.workspace / "open").mkdir()
+        locked.chmod(0o000)
+        self.addCleanup(locked.chmod, 0o700)
+
+        names = {d["name"]: d["is_memory"] for d in self.api.folders(str(self.workspace))["directories"]}
+
+        self.assertEqual((names.get("locked"), names.get("open")), (False, False))
 
     def test_a_bad_path_falls_back_to_home_instead_of_failing(self) -> None:
         data = self.api.folders("/path/that/does/not/exist/anywhere")

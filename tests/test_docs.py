@@ -47,7 +47,8 @@ class InstallDetectorTests(unittest.TestCase):
 
         result = subprocess.run(
             [sys.executable, "-c", self.script],
-            env={**os.environ, "HOME": str(home)},
+            # Path.home() reads USERPROFILE on Windows and HOME elsewhere.
+            env={**os.environ, "HOME": str(home), "USERPROFILE": str(home)},
             capture_output=True,
             text=True,
             timeout=30,

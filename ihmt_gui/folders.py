@@ -70,7 +70,10 @@ def home() -> Path:
 
 def has_memory(path: Path) -> bool:
     """Tell whether ``path`` already contains an IHMT memory."""
-    return (path / "ihmt_memory" / "root.json").exists()
+    try:
+        return (path / "ihmt_memory" / "root.json").exists()
+    except OSError:  # a folder we may not read (root-only folders in Linux's /tmp)
+        return False
 
 
 def list_directories(raw_path: Optional[str] = None, *, limit: int = 500) -> DirectoryListing:
