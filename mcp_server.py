@@ -107,7 +107,7 @@ pass long logs through `digest_output`.
 server = _Server(
     name="ihmt-memory",
     instructions=SERVER_INSTRUCTIONS,
-    version="1.2.0",
+    version="1.2.1",
 )
 
 _memory: Optional[IHMT] = None
