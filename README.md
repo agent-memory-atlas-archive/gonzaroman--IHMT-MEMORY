@@ -1,6 +1,7 @@
 # IHMT — Infinite Hierarchical Memory Tree
 
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/gonzaroman/ihmt-memory)
+[![ihmt-memory MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/gonzaroman/IHMT-MEMORY/badges/score.svg)](https://glama.ai/mcp/servers/gonzaroman/IHMT-MEMORY)
 
 <!-- mcp-name: io.github.gonzaroman/ihmt-memory -->
 
