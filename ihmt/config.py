@@ -8,6 +8,8 @@ can be relocated as a single directory.
 from __future__ import annotations
 
 import json
+import os
+import threading
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, Dict
@@ -125,7 +127,7 @@ class IHMTConfig:
     def save(self) -> None:
         """Persist the configuration next to the store."""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.config_path.with_suffix(".json.tmp")
+        tmp = self.config_path.with_suffix(f".json.{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(
             json.dumps(self.to_dict(), indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",

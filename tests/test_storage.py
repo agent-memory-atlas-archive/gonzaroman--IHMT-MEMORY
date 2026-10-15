@@ -96,6 +96,17 @@ class CatalogTests(StoreTestCase):
         leftovers = [p.name for p in self.memory.config.memory_dir.rglob("*.tmp")]
         self.assertEqual(leftovers, [])
 
+    def test_threads_writing_the_same_file_do_not_collide(self) -> None:
+        # The MCP server runs tool calls in worker threads of one process.
+        from concurrent.futures import ThreadPoolExecutor
+
+        target = self.memory.config.memory_dir / "state" / "parallel.json"
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda n: self.memory.store.write_json(target, {"n": n}), range(64)))
+
+        self.assertIn(json.loads(target.read_text(encoding="utf-8"))["n"], range(64))
+        self.assertEqual(list(target.parent.glob("*.tmp")), [])
+
     def test_forced_reinitialization_keeps_leaves_and_rebuilds_the_tree(self) -> None:
         self.ingest_example("journal_personal.txt")
         self.memory.flush()

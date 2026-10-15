@@ -81,6 +81,24 @@ class McpToolTests(unittest.TestCase):
         self.srv.save_memory("Una nota cualquiera que merece recordarse.")
         self.assertTrue((Path(self._tmp.name) / "ihmt_memory" / "root.json").exists())
 
+    def test_parallel_calls_on_a_new_store_all_succeed(self) -> None:
+        # The SDK runs each call in a worker thread, and agents often call tools in parallel.
+        from concurrent.futures import ThreadPoolExecutor
+
+        def call(n: int) -> str:
+            if n % 2:
+                return self.srv.search_memory(f"nota paralela {n} proyecto Orión")
+            return self.srv.save_memory(f"2026-10-15: nota paralela número {n} sobre el proyecto Orión.")
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            outputs = list(pool.map(call, range(24)))  # an exception in any call re-raises here
+
+        for n, output in enumerate(outputs):
+            with self.subTest(call=n):
+                self.assertNotIn("unavailable", output)
+                if n % 2 == 0:
+                    self.assertIn("Memory now holds", output)
+
     # ------------------------------------------------------------ save_memory
     def test_saving_reports_classification_and_growth(self) -> None:
         output = self.srv.save_memory(

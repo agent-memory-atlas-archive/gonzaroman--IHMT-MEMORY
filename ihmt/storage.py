@@ -12,6 +12,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -249,7 +250,8 @@ class MemoryStore:
     def write_atomic(self, path: Path, text: str) -> None:
         """Durably write ``text`` to ``path``, replacing it in one step."""
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        # Unique per process and thread, so concurrent writers never share a temporary file.
+        tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
         try:
             with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
                 handle.write(text)

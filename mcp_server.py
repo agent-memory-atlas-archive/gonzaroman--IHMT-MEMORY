@@ -35,14 +35,16 @@ from __future__ import annotations
 
 import atexit
 import difflib
+import functools
 import hashlib
 import logging
 import os
 import re
 import sys
 import tempfile
+import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeVar
 
 # --------------------------------------------------------------------- SDK
 # MCP 2.x renamed FastMCP to MCPServer. Both spellings, plus the standalone
@@ -114,6 +116,23 @@ _delivered: Dict[str, Tuple[str, str]] = {}  # resolved path -> (sha256, text) h
 _session: Optional[IHMT] = None
 _session_dir: Optional[tempfile.TemporaryDirectory] = None
 _session_counter = 0
+
+#: The SDK runs each tool call in a worker thread, and agents often call several
+#: tools at once. The stores and caches above are not thread-safe, so tool calls
+#: take turns.
+_tool_lock = threading.RLock()
+_Tool = TypeVar("_Tool", bound=Callable[..., str])
+
+
+def _one_at_a_time(tool: _Tool) -> _Tool:
+    """Run ``tool`` under the server-wide lock (signature and docstring kept for the SDK)."""
+
+    @functools.wraps(tool)
+    def locked(*args, **kwargs):  # type: ignore[no-untyped-def]
+        with _tool_lock:
+            return tool(*args, **kwargs)
+
+    return locked  # type: ignore[return-value]
 
 
 def get_memory() -> IHMT:
@@ -277,6 +296,7 @@ def _search(memory: IHMT, query: str, clue: Optional[str], detail: str, empty_hi
 
 # ------------------------------------------------------ long-term memory tools
 @server.tool()
+@_one_at_a_time
 def search_memory(query: str, clue: Optional[str] = None, detail: str = "compact") -> str:
     """Search the user's long-term memory (IHMT): decisions, setup, preferences, people, earlier sessions.
 
@@ -303,6 +323,7 @@ def search_memory(query: str, clue: Optional[str] = None, detail: str = "compact
 
 
 @server.tool()
+@_one_at_a_time
 def save_memory(content: str, domain: str = "general", content_type: str = "auto", replaces: str = "") -> str:
     """Store durable knowledge in the user's long-term memory (IHMT).
 
@@ -467,6 +488,7 @@ def _apply_correction(memory: IHMT, content: str, new_ids: List[str], replaces: 
 
 
 @server.tool()
+@_one_at_a_time
 def mark_outdated(old_id: str, new_id: str) -> str:
     """Flag one memory as corrected by another, after save_memory listed candidates.
 
@@ -486,6 +508,7 @@ def mark_outdated(old_id: str, new_id: str) -> str:
 
 # ------------------------------------------------------------ project tools
 @server.tool()
+@_one_at_a_time
 def project_map(path: str, detail: str = "files", subpath: str = "") -> str:
     """Compact map of a codebase: files with their size in tokens, optionally their symbols and line ranges.
 
@@ -506,6 +529,7 @@ def project_map(path: str, detail: str = "files", subpath: str = "") -> str:
 
 
 @server.tool()
+@_one_at_a_time
 def find_code(
     query: str,
     path: str,
@@ -547,6 +571,7 @@ def find_code(
 
 
 @server.tool()
+@_one_at_a_time
 def read_file(path: str, force: bool = False, start_line: int = 0, end_line: int = 0) -> str:
     """Read a text file, remembering what you were given this session.
 
@@ -605,6 +630,7 @@ def read_file(path: str, force: bool = False, start_line: int = 0, end_line: int
 
 # ------------------------------------------------------------ session tools
 @server.tool()
+@_one_at_a_time
 def note(text: str) -> str:
     """Keep something you learned in this session (where a thing lives, what a method does, a result).
 
@@ -621,6 +647,7 @@ def note(text: str) -> str:
 
 
 @server.tool()
+@_one_at_a_time
 def recall(query: str, clue: Optional[str] = None) -> str:
     """Search what you kept earlier in this session with note or digest_output (not long-term memory).
 
@@ -643,6 +670,7 @@ _DIGEST_RE = re.compile(
 
 
 @server.tool()
+@_one_at_a_time
 def digest_output(text: str, label: str = "output") -> str:
     """Condense a long command output (build log, test report) and keep the full text for recall.
 
