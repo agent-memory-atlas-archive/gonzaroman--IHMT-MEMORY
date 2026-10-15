@@ -76,6 +76,22 @@ class _FileLock:
         self.path.unlink(missing_ok=True)
 
 
+def _replace(src: Path, dst: Path, attempts: int = 50) -> None:
+    """``os.replace``, retried on Windows while another handle has ``dst`` open.
+
+    Windows refuses to replace a file that a reader or another writer holds
+    open at that instant; the handle goes away within milliseconds.
+    """
+    for attempt in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == attempts - 1:
+                raise
+            time.sleep(0.02)
+
+
 @dataclass
 class CatalogEntry:
     """Lightweight index record for one node of the tree."""
@@ -257,7 +273,7 @@ class MemoryStore:
                 handle.write(text)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(tmp, path)
+            _replace(tmp, path)
         finally:
             if tmp.exists():  # pragma: no cover - only on a failed write
                 tmp.unlink(missing_ok=True)
